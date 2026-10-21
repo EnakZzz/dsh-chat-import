@@ -494,3 +494,19 @@ test('convertDshJsonl：跳过本插件注入的环境变更声明（V3 / V4 两
   assert.equal(out.turns[0].prompt, '真实提问', '注入声明不能顶掉真实提问')
   assert.equal(out.title, '真实提问', '标题回退同样跳过注入声明')
 })
+
+test('convertDshJsonl 不透传源标题：重排后的 messageSeqs 会指向无关事件', () => {
+  // 真实现场：源日志里一条 fallback 标题带着 messageSeqs（重排前 seq），重导后
+  // 事件被重编号，引用落到后面的 tool/result 上 → 宿主 v4 关系校验拒载整份日志。
+  const lines = SESSION_LINES.map((line) => (line.type === 'session/title'
+    ? { ...line, data: { title: 'DSH 导入测试', messageSeqs: [10], source: { kind: 'fallback' } } }
+    : line))
+  const out = convertDshJsonl(lines.map((line) => JSON.stringify(line)).join('\n'), {
+    sourcePath: '/tmp/proj/session.jsonl',
+  })
+  // 标题文本仍然进 IR（插件末尾自钉一条），但源标题事件不再写出
+  assert.equal(out.title, 'DSH 导入测试')
+  assert.equal(out.events.some((event) => event.type === 'session/title'), false)
+  const validation = validateSessionEvents(out.events)
+  assert.equal(validation.ok, true, JSON.stringify(validation.problems))
+})
