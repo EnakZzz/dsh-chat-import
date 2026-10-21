@@ -7,6 +7,7 @@
       zh: {
         "trigger.title": "从其他工具导入会话（发现 + 单选/多选导入）",
         "trigger.label": "导入会话",
+        "trigger.needsSession": "请先打开一个会话，再从右栏导入",
         "sidebar.guide.description": "从 Claude Code / Codex / ChatGPT 等 25+ 工具导入会话并续聊",
         "allSources": "全部来源",
         // DSH 两代的完整展示名（来源下拉用；会话行提示用 SOURCE_LABELS 的中性短名）
@@ -240,6 +241,7 @@
       en: {
         "trigger.title": "Import sessions from other tools (discover + single/multi select)",
         "trigger.label": "Import Sessions",
+        "trigger.needsSession": "Open a session first, then import from the right panel",
         "sidebar.guide.description": "Import and resume sessions from Claude Code, Codex, ChatGPT and 25+ tools",
         "allSources": "All sources",
         "source.dsh": "DSH V3 session format",

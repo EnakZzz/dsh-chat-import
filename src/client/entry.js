@@ -138,7 +138,9 @@
           // 而非覆盖主区）。openNativeImportTab 每次点击重证 sidebarRight 服务
           //（无挂载会话 / HMR 换服务时返回 false，本次点击无动作——依赖门槛保证
           // 受支持版本服务恒存在，无回落链）。
-          openNativeImportTab();
+          // 没有挂载会话时 sidebarRight 服务尚未提供，openNativeImportTab 返回
+          // false。静默吞掉会让按钮看起来是坏的，这里明说先打开会话。
+          if (!openNativeImportTab()) showAppToast(t("trigger.needsSession"));
         },
         onMouseEnter: (e) => { e.currentTarget.style.background = hoverBg; },
         onMouseLeave: (e) => { e.currentTarget.style.background = "transparent"; },
