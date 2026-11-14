@@ -26,7 +26,7 @@
 
 ## D3. 纯函数转换层与 host 面严格分层
 
-- **背景**：来源有三十种（含 DSH 自己的两代会话日志），这些解析逻辑是 bug 的重灾区，必须能脱离宿主单独测试。
+- **背景**：来源有三十三种（含 DSH 自己的两代会话日志），这些解析逻辑是 bug 的重灾区，必须能脱离宿主单独测试。
 - **决定**：`lib/convert/*` 与 `lib/export/*` 是纯函数层：不读磁盘，不 import 宿主服务，文件头写清存储契约。host 面（发现、IO、调用宿主服务）放在 `lib/*.mjs`。其中按来源命名的适配器——SQLite 读取、来源专属编排——收在 `lib/sources/<src>.mjs`，与 `lib/convert/<src>.mjs` 一一对应（2026-09 从 `lib/<src>.mjs` 平移过来，只是换了路径）。新增来源固定走 `AGENTS.md` 里的「新增一个来源」六步。
 - **代价**：同一个来源有时要拆成 `convert/<src>.mjs` 和 `lib/<src>.mjs` 两个文件，层与层之间的数据形状也得显式约定。
 - **重审条件**：无。这是测试能力的根基。
@@ -66,7 +66,7 @@
 ## D7. 浏览器侧 bundle 例外于零构建：src/client/ 分片 + 组装脚本（2026-09 定）
 
 - **背景**：`lib/client.js` 是侧面板的 UI，曾经长到 2131 行，触发了体量停止线。但 DSH 的客户端模块加载器既没有相对 require，也没有资源 URL，浏览器侧的产物**必须**是一个自包含的单文件。「分成多个文件但不构建」在这个平台上做不到。出路有两条：上全套 TypeScript 工具链（dsh-better-sidebar 的做法），或者分片加逐字拼接（dsh-claude-style 的做法）。前者违反 D1，而且它的重审条件也不成立（不对外发 TypeScript 类型契约、不需要支持旧 Node）；对一个陈述式的 UI bundle 来说，工具链的代价与收益不成比例。
-- **决定**：源码按职责拆到 `src/client/`，片段清单以 `scripts/build-client.mjs` 的 `FRAGMENTS` 为准，再由构建脚本逐字拼回 `lib/client.js`，沿用 dsh-claude-style 已经验证过的同平台路线。宿主侧与面板共用的纯函数（`lib/panel-filter.mjs`、`lib/footer-layout.mjs`）不在片段里另抄一份：组装脚本按白名单把它们内联进 bundle——去掉 `export` 关键字、按 4 空格基准缩进，并拒绝 import、`export default` 和多行模板串——所以测试测的就是发布的那一份。片段本身的契约是：禁 import / export（各片共享同一个 factory 作用域，顺序就是声明顺序）、4 空格基准缩进、LF 行尾。构建内置了 vm 语法门禁，`npm run build` 带 `--check` 做新鲜度校验，产物与源漂移即失败。同一轮还把根目录的发布入口收进了子目录：`index.mjs` / `index.d.ts` 移到 `lib/`，`convert.mjs` / `export.mjs` 两个 shim 移到 `lib/convert/index.mjs` 与 `lib/export/index.mjs`（`exports["./export.mjs"]` 的子路径契约不变），ROADMAP 与 CONTRIBUTING 移到 `docs/`。
+- **决定**：源码按职责拆到 `src/client/`，片段清单以 `scripts/build-client.mjs` 的 `FRAGMENTS` 为准，再由构建脚本逐字拼回 `lib/client.js`，沿用 dsh-claude-style 已经验证过的同平台路线。宿主侧与面板共用的纯函数（`lib/panel-filter.mjs`、`lib/highlight.mjs`、`lib/footer-layout.mjs`）不在片段里另抄一份：组装脚本按白名单把它们内联进 bundle——去掉 `export` 关键字、按 4 空格基准缩进，并拒绝 import、`export default` 和多行模板串——所以测试测的就是发布的那一份。片段本身的契约是：禁 import / export（各片共享同一个 factory 作用域，顺序就是声明顺序）、4 空格基准缩进、LF 行尾。构建内置了 vm 语法门禁，`npm run build` 带 `--check` 做新鲜度校验，产物与源漂移即失败。同一轮还把根目录的发布入口收进了子目录：`index.mjs` / `index.d.ts` 移到 `lib/`，`convert.mjs` / `export.mjs` 两个 shim 移到 `lib/convert/index.mjs` 与 `lib/export/index.mjs`（`exports["./export.mjs"]` 的子路径契约不变），ROADMAP 与 CONTRIBUTING 移到 `docs/`。
 - **代价**：真相有了两层。改面板必须改 `src/client/` 再重新组装；直接改 `lib/client.js` 会被 `--check` 拦下（CI 单独跑一步 `build-client.mjs --check`）。片段之间会互相引用，所以 eslint 按组装脚本生成的跨片全局名单、逐片段启用 no-undef——vm 语法门禁只管能不能解析，管不到未定义的引用。首次拆分以「产物逐字节一致」为验收标准，行为零变化。
 - **重审条件**：DSH 客户端加载器开始支持相对 require 或资源 URL 时。那时可以回到纯 ESM 直发，拆掉的只是组装脚本。
 
@@ -86,8 +86,8 @@
 ## D9. 导入会话自带空 system head：surface 首事件必须是 system/message（2026-09 定）
 
 - **背景**：宿主 v3→v4 的迁移器把 surface 上的第一个 `system/message` 记为 protected head，此后每一步写系统提示词都以它为替换锚点。如果 surface 里已经有别的 surface 事件、而 head 还没建立，迁移器会 fail-closed 拒载整份日志（`system/message requires a protected first surface head`）。导入会话此前从 `user/message` 开始，宿主续聊、要写自己的系统提示词时就撞上这条规则；由它 seed 出来的续聊会话同样打不开。原生会话不受影响，因为它创建时就写了 head。
-- **决定**：`synthesizeSession` 在首个 `step/start` 之后、任何其他 surface 事件之前写一条 `system/message`，带 `surfaceOp: 'append'`、`content: []`、`source.plugin = 'chat-import'`。位置和内容都对齐宿主自己的 v2→v3 迁移器——它同样在第一个 step/start 处插一条空 head。空内容只占住 surface 的第 0 个节点，真正的系统提示词由宿主在下一步替换或归一化，导入这边不虚构提示词。
-- **代价**：导入会话多出一条事件（`storedEvents` 基线因此加 1）。首轮没有 step 时，补一个只装 head 的空 step。`SESSION_EVENT_TYPES` 和 surface 集合要加入 `system/message` 与 `developer/message`。`verify_session` 新增 `system-head-missing` 来点名存量旧形状——head 必须是 surface 的首事件，旧日志只能 force 重导，没法原地补写。
+- **决定**：`synthesizeSession` 在首个 `step/start` 之后、任何其他 surface 事件之前写一条 `system/message`，带 `surfaceOp: 'append'`、`content: []`、`source.plugin = 'chat-import'`。位置和内容都对齐宿主自己的 v2→v3 迁移器——它同样在第一个 step/start 处插一条空 head。空内容只占住 surface 的第 0 个节点，真正的系统提示词由宿主在下一步替换或归一化，导入这边不虚构提示词。DSH 源通过 `convert/dsh.mjs` 直接透传事件，不经过 `synthesizeSession`，同样在首个 `step/start` 处补一条空 head——源日志自带的 `system/message` 属运行时头状态，照旧丢弃；同一套 seq 重排里，`session/title.messageSeqs` 也必须和 `sourceEventSeqs` 一样重映射，否则宿主 v3→v4 迁移会以 `title messageSeqs must name an earlier event` 拒载。坐标重映射之后还有一道语义过滤：只保留映射后仍为人类 `user/message`（`source.kind === 'user'`）的引用——只换坐标会把已损坏源日志里指向 `session-reference` 一类注入的坏目标忠实继承下去（宿主报 `must cite distinct earlier human user/message events`），重导导入会话时还会隔代传染；非 user 标题的引用被滤空时丢弃该条标题，标题文本仍由转换结果的 `title` 与末尾 pin 保留。
+- **代价**：导入会话多出一条事件（`storedEvents` 基线因此加 1）。首轮没有 step 时，补一个只装 head 的空 step。`SESSION_EVENT_TYPES` 和 surface 集合要加入 `system/message` 与 `developer/message`。`verify_session` 新增 `system-head-missing`（surface 首事件不是 head）与 `title-message-seqs`（标题引用不再指向更早的人类 user/message）来点名存量旧形状——head 必须是 surface 的首事件，旧日志只能 force 重导，没法原地补写。
 - **重审条件**：宿主迁移器改成「缺 head 时自己插入」（v2→v3 就是这种语义）时，这段插桩可以退化为可选。
 
 
@@ -331,7 +331,7 @@
      - host 面：`lib/sources/sqlite.mjs`（只读打开、列自适应）、`lib/import-state.mjs`（已知记录加源未变短路径，含 WAL 与选择性补导守卫）、`lib/import-batch.mjs`（文件收集加批量计数）、`lib/atomic-write.mjs`。
      - 测试：`test/_support/`。
      
-     来源如果确实有不同语义，就**参数化**共用件，不复制。设计同源的来源共用一个转换引擎、各自只留差异描述（pi 与 omp 共用 `lib/convert/pi-family.mjs`）。
+     来源如果确实有不同语义，就**参数化**共用件，不复制。设计同源的来源共用一个转换引擎、各自只留差异描述（pi 与 omp 共用 `lib/convert/pi-family.mjs`；CodeBuddy Code 与 WorkBuddy 共用 `lib/convert/buddy-family.mjs`）。
   2. **清单派生，不手写**。发现层每个来源一个描述符（`lib/discovery/registry.mjs`），FORMATS、默认根、扫描器、单文件判格式都由它派生。`import_chat` 的格式表（`lib/toolkit.mjs` 的 `CHAT_FORMATS`）派生 `/import` 的别名，也是 `docs/IMPORT-GUIDE.md` 来源表的对账对象。导入 spec 里的 `multiSession` 标记派生面板与工具 `sessionIds` 的适用范围。`index.d.ts` 的格式联合类型由一致性测试对照运行时清单。
   3. **边界由测试与门禁守住，不靠自觉**。转换层与导出层的 import 边界有测试（越界即失败，见 D3）。`build-check` 会从发布入口沿模块图走一遍，可达模块不在 `files` 白名单就失败——新子目录忘登记时，`lib/tools/` 与 `lib/discovery/` 曾经差点没发出去。
 - **代价**：模块变多，追一个调用要多跳一层。改一个共用件会同时影响所有来源——这正是目的，回归由各来源的测试兜住。
@@ -388,3 +388,21 @@
   - 服务是长期对外的 ABI。`ImportAllResult` 的字段名一改就会影响第三方调用方，所以只能加字段，不能改名。
   - `/import-all` 的 `--force` 多了一条「必须带 path」的约束，因为不限定范围的全量重导，会给每个已导入会话都铸一份副本。
 - **重审条件**：宿主提供官方的插件间服务注册或发现机制（取代直接 `ctx.provide`）时，注册那一步改走该机制。服务方法的返回结构如果要收进宿主的类型体系，以那份声明为准，并删掉本仓库的手写类型。
+
+---
+
+## D25. 面板行工具的动作面：只认当前扫描的行，删源限定根扫描且只进回收站（2026-10 定）
+
+- **背景**：面板的会话行加了四个动作——预览、正文搜索、隐藏、删除源文件，外加把行拖到侧栏工作区完成导入。前三个是读或可撤销操作，删源是唯一**不可逆**的动作（文件离开原位）。第一版只有一个门禁：「这条路径出现在某个扫描结果里」；而 `/api-import/sessions` 允许请求体带 `path` 指定任意扫描根，于是「任意目录 → 扫描 → 删除」连成一条链，`..` 都不需要（`fs.resolve` 已把路径规范化）。同类问题还有一文件多会话的来源（`conversations.json`、sqlite 库）：按 `sessionId` 请求时路径相同就命中，删掉的其实是整份文件。另一处数据损失是「隐藏」覆盖写入忽略表：归档 / 撤回墓碑被换成可撤销的 `hidden`，撤销之后墓碑整个消失。
+- **决定**：
+  1. **行工具只接受当前扫描里的行**。hide / unhide / delete-source 都经 `scannedRows()` 回查扫描缓冲，请求体里的路径不是凭据；`sessionId` 严格相等，多会话源缺 `sessionId` 直接不命中并计入 `unknown`。
+  2. **删源只对「根驱动」扫描成立**。扫描状态记下该扫描是否由请求体的 `path` 覆盖创建：面板客户端从不传 `path`（只发 source / query / epoch / after），所以真实 UI 里的行都可删；用显式 `path` 扫出来的行允许预览、搜索、隐藏与导入，删除回 `refused`。这条把链路断在破坏性动作上，又不削减扫描本身的能力。
+  3. **删源按「这个文件承载几条会话」判定，不只看格式标记**。同一 `sourcePath` 在本次扫描里产出多于一条会话就拒绝——`multiSession` 是来源描述，不是安全边界。
+  4. **删源只进回收站，DSH 侧副本保留**。Windows 走 `Microsoft.VisualBasic.FileIO.FileSystem` 的 `SendToRecycleBin`（路径经环境变量传给 PowerShell，不进脚本文本）；其余平台 `rename` 到 `<registryDir>/trash/<时间戳>/`。失败如实回 `status:'failed'`，不静默。
+  5. **隐藏是忽略表的第四种 reason，可撤销，且不覆盖既有墓碑**。`archived` / `retracted` / `workspace-deleted` 表示「不再重导」，`hidden` 只是面板收起。写入时同键已有其它 reason 就跳过（回 `skipped` 计数），Undo 只删 `reason:'hidden'` 的条目；多会话源只认 `#sessions:<id>` 子键，不回落整源键，否则隐藏一条会带走同库其它会话。
+  6. **拖放只认工作区 id，路径永不从请求体取**。侧栏工作区行用 `data-row-key="workspace:<id>"` 定位（class 名被宿主构建哈希过，不可依赖），`id` 交给 `workspaceRegistry` 解析；拖放数据里的 `sourcePath` 只用于在当前列表里回查。落点用 `workspaceMode: 'dedicated'` + `workspaceDir` 钉在该工作区，副本用 `restamp: 'end'`（最后一个事件落在现在）排到该工作区最上面；这三个参数进参数指纹，换工作区重拖不会被「源未变」静默吞掉。
+- **代价**：
+  - 显式 `path` 扫描出来的行没有删除入口。要清这类文件，用户仍在文件管理器里删；面板不提供更宽的口子。
+  - 隐藏与归档共用一张忽略表，语义只靠 `reason` 区分；`/ignores` 的输出要多认一种 reason，文档必须写清「可撤销」与「不可逆」的差别。
+  - 删源依赖平台能力：Windows 需要 `powershell.exe`，其余平台只是把文件挪进插件自己的 trash 目录（不删除，所以仍占空间）。
+- **重审条件**：宿主提供带鉴权的面板接口，或提供官方的「移入回收站」服务时，第 2 条可放宽到「用户显式选中的根」，第 4 条改走宿主服务。若将来 UI 真要支持自定义根扫描并允许删源，扫描请求必须携带独立的能力凭据，而不是复用 `path`。

@@ -97,8 +97,8 @@ export interface ImportOptions {
   recursive?: boolean
   /** 期望的源文件 SHA-256（小写 hex）；不符时大声失败、不写任何东西。 */
   expectedHash?: string
-  /** true 时把导入的时间戳平移到当前（保留相对间隔）；默认保留源时间。 */
-  restamp?: boolean
+  /** true 时把导入的时间戳平移到当前（保留相对间隔）；'end' 让最后一个事件落在当前（拖到侧栏工作区用）；默认保留源时间。 */
+  restamp?: boolean | 'end'
   /** 归组方式：auto（默认）/ per-project / dedicated（全部导入进同一个工作区）。 */
   workspaceMode?: WorkspaceMode
   /** workspaceMode=dedicated 时的工作区目录。 */
@@ -108,16 +108,16 @@ export interface ImportOptions {
 }
 
 export type LocalJsonlFormat =
-  | 'dsh' | 'claude' | 'codex' | 'cursor' | 'reasonix' | 'pi' | 'openclaw' | 'hermes' | 'qoder' | 'vibe'
+  | 'dsh' | 'claude' | 'codex' | 'cursor' | 'reasonix' | 'pi' | 'openclaw' | 'hermes' | 'qoder' | 'vibe' | 'codearts' | 'codebuddy' | 'copilot-vscode' | 'copilot-cli'
   /** interchange v1 会话文档（内容标记 "interchange":"dsh-chat-import"；长尾来源与 skill 路线的落点）。 */
   | 'generic'
 
 /** import_chat 的源格式枚举（值 = 来源短名；除 local-jsonl 外与 discovery 的 ScanFormat 一致）。 */
 export type ChatFormat =
-  | 'claude' | 'codex' | 'chatgpt' | 'cursor' | 'gemini' | 'antigravity' | 'reasonix' | 'opencode'
+  | 'claude' | 'codex' | 'chatgpt' | 'cursor' | 'gemini' | 'antigravity' | 'reasonix' | 'opencode' | 'opencowork'
   | 'mimocode' | 'kilocode' | 'teleagent' | 'zcode' | 'grokbuild' | 'openclaw' | 'hermes' | 'pi' | 'omp'
-  | 'kimi' | 'qoder' | 'workbuddy' | 'qwen' | 'trae' | 'vibe' | 'continue' | 'cline' | 'goose'
-  | 'zed' | 'crush' | 'dsh' | 'dsh4' | 'local-jsonl'
+  | 'kimi' | 'qoder' | 'workbuddy' | 'codebuddy' | 'qwen' | 'trae' | 'doubao' | 'vibe' | 'codearts' | 'continue' | 'cline' | 'goose'
+  | 'zed' | 'crush' | 'dsh' | 'dsh4' | 'local-jsonl' | 'copilot-vscode' | 'copilot-cli'
 
 /** import_chat 参数：公共导入参数（ImportOptions）+ 源格式 + 源专属参数。 */
 export interface ImportChatOptions extends ImportOptions {
@@ -127,9 +127,9 @@ export interface ImportChatOptions extends ImportOptions {
   compacted?: boolean
   /** 仅 chatgpt：'main'（默认）只重建主线程；'all' 枚举全部分支会话。 */
   branch?: 'main' | 'all'
-  /** 仅一库多会话来源（opencode / mimocode / kilocode / teleagent / trae / zcode / goose / zed / crush）：只导入指定源会话 id（缺省导入全部）。 */
+  /** 仅一库多会话来源（opencode / opencowork / mimocode / kilocode / teleagent / trae / doubao / zcode / goose / zed / crush）：只导入指定源会话 id（缺省导入全部）。 */
   sessionIds?: string[]
-  /** 仅压缩感知来源（claude / cline / codex / continue / crush / grokbuild / kimi / mimocode / kilocode / opencode / pi / omp / teleagent / zcode / zed）：true 时导入全量历史并**不发**压缩检查点（模型看到全量）；默认 false 尊重压缩（日志保全量、模型只见摘要 + 压缩点之后）。omp 另受该开关影响：false 时按 reset_boundary（/clear）切掉清空点之前的内容。该开关进参数指纹，换值须重导。名单与 `import_chat` 的描述串同源（由 spec.fullHistory 派生）。 */
+  /** 仅压缩感知来源（claude / cline / codex / continue / copilot-cli / crush / grokbuild / kimi / mimocode / kilocode / opencode / pi / omp / qoder / teleagent / zcode / zed）：true 时导入全量历史并**不发**压缩检查点（模型看到全量）；默认 false 尊重压缩（日志保全量、模型只见摘要 + 压缩点之后）。omp 另受该开关影响：false 时按 reset_boundary（/clear）切掉清空点之前的内容。该开关进参数指纹，换值须重导。名单与 `import_chat` 的描述串同源（由 spec.fullHistory 派生）。 */
   fullHistory?: boolean
   /** 仅 claude：true 时把结构化 toolUseResult sidecar（编辑 diff、问答、退出码等）以文本并入工具结果。进参数指纹，换值须 force。 */
   includeToolUseResult?: boolean
@@ -236,7 +236,7 @@ export interface DecisionReport {
   workspaceCreated?: boolean
   /** 未归组的会话数（>0 才占键）：会话已导入，但停在侧栏「未分组」下。 */
   ungrouped?: number
-  /** 未归组的首个原因（no-registry / cwd-is-home / create-failed: … / attach-failed: …）。 */
+  /** 未归组的首个原因（no-registry / cwd-is-home / cwd-ephemeral / create-failed: … / attach-failed: …）。 */
   ungroupedReason?: string
   trimmed?: TrimReport | null
   /** 重导另铸副本：`previous` 原会话、`current` 新副本、`reason` 点名缘由。两个会话都保留。 */
@@ -265,6 +265,9 @@ export interface ImportReport extends DecisionReport {
   droppedMalformedOutputs?: number
   /** 未能转成标准 JSON、原样保留的工具参数条数（Codex custom_tool_call）。 */
   droppedMalformedArgs?: number
+  /** 工具调用的原始参数 / 结果未在来源文件中持久化的条数。 */
+  missingToolInputs?: number
+  missingToolOutputs?: number
   /**
    * Codex Desktop「导入外部 agent 会话」展平信封的还原计数（任一 > 0 才占键）：
    * calls = 还原的 tool-call 数、results = 配上调用的结果数、
@@ -348,6 +351,9 @@ export interface PreviewEntry {
   toolCalls?: number
   skipped?: number
   skipReason?: string
+  missingToolInputs?: number
+  missingToolOutputs?: number
+  droppedToolResultBlocks?: number
   detectedFormat?: string
   detectedBy?: 'override' | 'marker' | 'path-hint' | 'content'
   bundle?: boolean
@@ -637,10 +643,10 @@ export interface RetractResult {
 
 /** 发现层可扫描的格式（= lib/discovery.mjs 的 FORMATS；比 ChatFormat 少 local-jsonl）。 */
 export type ScanFormat =
-  | 'claude' | 'codex' | 'cursor' | 'gemini' | 'antigravity' | 'reasonix' | 'opencode' | 'mimocode'
+  | 'claude' | 'codex' | 'cursor' | 'gemini' | 'antigravity' | 'reasonix' | 'opencode' | 'opencowork' | 'mimocode'
   | 'zcode' | 'grokbuild' | 'openclaw' | 'pi' | 'omp' | 'hermes' | 'kimi' | 'kilocode' | 'qoder'
-  | 'chatgpt' | 'workbuddy' | 'qwen' | 'continue' | 'cline' | 'goose' | 'dsh4' | 'zed'
-  | 'crush' | 'teleagent' | 'trae' | 'vibe' | 'dsh'
+  | 'chatgpt' | 'workbuddy' | 'codebuddy' | 'qwen' | 'continue' | 'cline' | 'goose' | 'dsh4' | 'zed'
+  | 'crush' | 'teleagent' | 'trae' | 'doubao' | 'vibe' | 'codearts' | 'dsh' | 'copilot-vscode' | 'copilot-cli'
 
 export type ImportStatusLabel = 'imported' | 'partial' | 'not-imported' | 'archived'
 

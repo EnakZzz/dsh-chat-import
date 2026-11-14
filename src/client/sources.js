@@ -2,8 +2,8 @@
     // claude）。chatgpt 无默认数据根，仅显式 path 可发现。
     const SOURCES = [
       // DSH 两代置顶（紧随「全部来源」）：这是本插件自己的会话格式，最常被用来做迁移/续聊
-      "", "dsh", "dsh4", "claude-code", "codex", "chatgpt", "cursor", "gemini", "antigravity", "reasonix",
-      "opencode", "mimocode", "teleagent", "kilocode", "zcode", "grokbuild", "openclaw", "pi", "omp", "hermes", "kimi", "qoder", "workbuddy", "qwen", "trae", "vibe", "continue", "cline", "goose", "zed", "crush",
+      "", "dsh", "dsh4", "claude-code", "codex", "chatgpt", "copilot-vscode", "copilot-cli", "cursor", "gemini", "antigravity", "reasonix",
+      "opencode", "opencowork", "mimocode", "teleagent", "kilocode", "zcode", "grokbuild", "openclaw", "pi", "omp", "hermes", "kimi", "qoder", "workbuddy", "codebuddy", "qwen", "trae", "doubao", "vibe", "codearts", "continue", "cline", "goose", "zed", "crush",
     ];
     // 「导入到」下拉：dsh3 / dsh4 = 建指定代次的 DSH 会话日志（宿主按 header.version 落盘），
     // 默认项由探测到的宿主版本决定（面板在首个扫描响应里带回 dshVersion）。其余值 = 转投到
@@ -11,28 +11,28 @@
     const IMPORT_TARGETS = ["dsh3", "dsh4", "claude", "codex", "kimi", "opencode"];
     // discovery format 短名 → 客户端来源 id（构建 /api-import/import 的 items）。
     const FORMAT_SOURCE = {
-      claude: "claude-code", codex: "codex", chatgpt: "chatgpt", cursor: "cursor",
-      gemini: "gemini", antigravity: "antigravity", reasonix: "reasonix", opencode: "opencode", mimocode: "mimocode", teleagent: "teleagent", kilocode: "kilocode", zcode: "zcode",
+      claude: "claude-code", codex: "codex", chatgpt: "chatgpt", "copilot-vscode": "copilot-vscode", "copilot-cli": "copilot-cli", cursor: "cursor",
+      gemini: "gemini", antigravity: "antigravity", reasonix: "reasonix", opencode: "opencode", opencowork: "opencowork", mimocode: "mimocode", teleagent: "teleagent", kilocode: "kilocode", zcode: "zcode",
       grokbuild: "grokbuild", openclaw: "openclaw", pi: "pi", omp: "omp", hermes: "hermes",
-      kimi: "kimi", qoder: "qoder", workbuddy: "workbuddy", qwen: "qwen", trae: "trae", vibe: "vibe", continue: "continue", cline: "cline", goose: "goose", zed: "zed", crush: "crush", dsh: "dsh", dsh4: "dsh4",
+      kimi: "kimi", qoder: "qoder", workbuddy: "workbuddy", codebuddy: "codebuddy", qwen: "qwen", trae: "trae", doubao: "doubao", vibe: "vibe", codearts: "codearts", continue: "continue", cline: "cline", goose: "goose", zed: "zed", crush: "crush", dsh: "dsh", dsh4: "dsh4",
     };
     // 来源展示名（产品名不翻译）
     const SOURCE_LABELS = {
-      "claude-code": "Claude", codex: "Codex", chatgpt: "ChatGPT", cursor: "Cursor",
-      gemini: "Gemini CLI", antigravity: "Antigravity", reasonix: "Reasonix", opencode: "OpenCode", mimocode: "MimoCode",
+      "claude-code": "Claude", codex: "Codex", chatgpt: "ChatGPT", "copilot-vscode": "Copilot VS Code", "copilot-cli": "Copilot CLI", cursor: "Cursor",
+      gemini: "Gemini CLI", antigravity: "Antigravity", reasonix: "Reasonix", opencode: "OpenCode", opencowork: "openCoWork", mimocode: "MimoCode",
       teleagent: "TeleAgent",
       kilocode: "Kilo Code",
       zcode: "ZCode", grokbuild: "Grok Build", openclaw: "OpenClaw", pi: "Pi", omp: "oh-my-pi",
-      hermes: "Hermes", kimi: "Kimi CLI", qoder: "Qoder CLI", workbuddy: "WorkBuddy",
-      qwen: "QwenWork", trae: "Trae Work", vibe: "Mistral Vibe", continue: "Continue", cline: "Cline", goose: "Goose", zed: "Zed", crush: "Crush",
+      hermes: "Hermes", kimi: "Kimi CLI", qoder: "Qoder CLI", workbuddy: "WorkBuddy", codebuddy: "CodeBuddy Code",
+      qwen: "QwenWork", trae: "Trae Work", doubao: "Doubao", vibe: "Mistral Vibe", codearts: "CodeArts Desktop", continue: "Continue", cline: "Cline", goose: "Goose", zed: "Zed", crush: "Crush",
       // DSH 按会话日志代次拆两项（与 discovery 的 format 一一对应）：V0–V3 归 "dsh"，V4+ 归 "dsh4"。
       // 这里是中性短名（会话行提示/aria 用）；下拉里的完整展示名（「DSH V3 会话格式」）走 i18n。
       dsh: "DSH V3", dsh4: "DSH V4",
     };
     // 来源 id → 标键（SOURCE_LOGOS / SOURCE_BADGES 都按 discovery format 短名键控）：
-    // claude-code 的键是 claude；dsh4（DSH V4）与 dsh 共用同一个 DSH 标；其余同名。
+    // claude-code 用 claude 标，copilot-vscode 用 copilot 标；dsh4 与 dsh 共用 DSH 标。
     // 两个表都查不到时由 BrandMark 按首字母兜底。
-    const SOURCE_MARK_KEY = { "claude-code": "claude", dsh4: "dsh" };
+    const SOURCE_MARK_KEY = { "claude-code": "claude", dsh4: "dsh", "copilot-vscode": "copilot", "copilot-cli": "copilot" };
     // 只有连项目仓库里都没有可用矢量标的来源才在这里手绘（有官方标的走 SOURCE_LOGOS，见
     // logos.js）：白色圆角卡 + 品牌标 / 品牌色缩写。目前只剩 WorkBuddy（原仓库已不可达）、
     // TeleAgent（TeleAI 产品页无矢量标）、Crush（仓库里只有演示 GIF / PNG，没有矢量标）。
@@ -42,12 +42,20 @@
     };
     // Crush 同为缩写卡（与 assets/agents/crush.svg 同款）
     SOURCE_BADGES.crush = { color: "#5A56E0", text: "Cr" };
+    // openCoWork / NextCoWork 无可信矢量标 → 中性缩写卡，不伪造品牌标。
+    SOURCE_BADGES.opencowork = { color: "#2563EB", text: "OC" };
     // TeleAgent（星辰超级智能体）与 Trae 无公开矢量品牌标 → 缩写卡
     SOURCE_BADGES.teleagent = { color: "#0B57D0", text: "TA" };
     // Trae 的官方图标不在当前静态图标包中 → 使用中性缩写卡，避免伪造品牌标。
     SOURCE_BADGES.trae = { color: "#3B82F6", text: "Tr" };
+    // 豆包也没有可信的矢量品牌标 → 同款中性缩写卡（不冒充品牌标）
+    SOURCE_BADGES.doubao = { color: "#1E6FFF", text: "Db" };
     // Mistral Vibe 使用品牌橙色缩写卡
     SOURCE_BADGES.vibe = { color: "#F97316", text: "Vi" };
+    // CodeArts Desktop（华为云码道桌面客户端）没有可信的矢量品牌标 → 中性缩写卡（不冒充华为公司标）
+    SOURCE_BADGES.codearts = { color: "#C7000B", text: "CA" };
+    // CodeBuddy Code（腾讯云代码助手 CLI）没有可信的矢量品牌标 → 中性缩写卡（不冒充品牌标）
+    SOURCE_BADGES.codebuddy = { color: "#0052D9", text: "CB" };
     // 品牌标查询（lobehub 官方标优先）：SOURCE_LOGOS 在 logos.js 声明，两个表都按 discovery
     // format 短名键控，所以 source id 要先过 SOURCE_MARK_KEY（claude-code → claude）。
     // 返回 null = 这个来源没有官方品牌标，调用方回退 SOURCE_BADGES 的手绘卡。

@@ -121,10 +121,102 @@ test('convertDshJsonl 净化旧日志：过滤标记事件、剥离词汇表外 
   const out = convertDshJsonl(legacy.map((l) => JSON.stringify(l)).join('\n'), { sourcePath: '/tmp/proj/legacy-x.jsonl' })
   assert.ok(out.events.every((e) => e.type !== 'session/imported'))
   assert.ok(out.events.every((e) => !('ignorable' in e)))
-  assert.deepEqual(out.events.map((e) => e.seq), [0, 1, 2, 3])
-  // sourceEventSeqs 引用重映射到重排后的新 seq
+  assert.deepEqual(out.events.map((e) => e.seq), out.events.map((_, i) => i))
+  // sourceEventSeqs 引用重映射到重排后的新 seq（tool/call 在补 head 的 step 之前，seq 不变）
   const result = out.events.find((e) => e.type === 'tool/result')
   assert.deepEqual(result.sourceEventSeqs, [1])
+})
+
+test('convertDshJsonl 补 protected system head：首个 surface 事件、位于首个 step/start 之后（宿主 v3→v4 硬不变量）', () => {
+  const out = convertDshJsonl(RAW, { sourcePath: '/tmp/proj/session.jsonl' })
+  const surf = out.events.filter((e) => ['system/message', 'user/message', 'assistant/message', 'tool/result'].includes(e.type))
+  assert.equal(surf[0].type, 'system/message')
+  assert.equal(surf[0].surfaceOp, 'append')
+  assert.deepEqual(surf[0].data.message.content, [])
+  assert.equal(surf[0].data.message.role, 'system')
+  assert.deepEqual(surf[0].data.message.source, { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' })
+  assert.deepEqual({ turn: surf[0].data.turn, step: surf[0].data.step }, { turn: 1, step: 1 })
+  const step = out.events.findLast((e) => e.seq < surf[0].seq && e.type === 'step/start')
+  assert.ok(step, 'head 之前必须有 step/start（system/message 要求 open step）')
+  assert.equal(validateSessionEvents(out.events).ok, true)
+})
+
+test('convertDshJsonl 重映射 session/title.messageSeqs：重排后仍指向更早的人类 user/message', () => {
+  // 真机形态（issue 报错 "title messageSeqs must name an earlier event"）：源日志的
+  // 标题引用源 seq 8，转换丢弃了 system/message / title-llm-request 等事件后，不重映射
+  // 就会指向无关或更晚的事件。
+  const lines = [
+    { type: 'session', id: 'session-title-ref', cwd: '/tmp/proj', createdAt: 1700000000000 },
+    { type: 'turn/start', seq: 4, time: 1700000000000, data: { turn: 1 } },
+    { type: 'step/start', seq: 6, time: 1700000000000, data: { turn: 1, step: 1 } },
+    { type: 'system/message', seq: 7, time: 1700000000000, surfaceOp: 'append', data: { turn: 1, step: 1, message: { id: 'sys', role: 'system', content: [{ type: 'text', text: 'prompt' }], source: { kind: 'system-prompt' } } } },
+    { type: 'user/message', seq: 8, time: 1700000000000, surfaceOp: 'append', data: { id: 'u1', role: 'user', content: [{ type: 'text', text: '你好' }], source: { kind: 'user' } } },
+    { type: 'session/title', seq: 13, time: 1700000000000, data: { title: '打招呼', messageSeqs: [8], source: { kind: 'fallback' } } },
+    { type: 'session/title-llm-request', seq: 14, time: 1700000000000, data: { messageSeqs: [8], messages: [] } },
+    { type: 'session/title', seq: 17, time: 1700000000000, data: { title: 'Greeting', messageSeqs: [8], source: { kind: 'provider', provider: 'first-prompt-llm' } } },
+    { type: 'assistant/message', seq: 18, time: 1700000000000, surfaceOp: 'append', data: { turn: 1, step: 1, stream: [], message: { id: 'a1', role: 'assistant', content: [{ type: 'text', text: '你好！' }], source: { kind: 'model', provider: 'p', model: 'm' } } } },
+    { type: 'step/end', seq: 19, time: 1700000000000, data: { turn: 1, step: 1 } },
+    { type: 'turn/end', seq: 20, time: 1700000000000, data: { turn: 1, reason: { kind: 'completed' } } },
+  ]
+  const out = convertDshJsonl(lines.map((l) => JSON.stringify(l)).join('\n'), { sourcePath: '/tmp/proj/session-title-ref.jsonl' })
+  const user = out.events.find((e) => e.type === 'user/message')
+  const titles = out.events.filter((e) => e.type === 'session/title')
+  assert.equal(titles.length, 2, '两条源标题都保留（最后一条随后会被 panel 标题 pin 覆盖）')
+  for (const title of titles) {
+    assert.ok(title.seq < out.events.length)
+    assert.deepEqual(title.data.messageSeqs, [user.seq], '引用重映射到重排后的 user/message seq')
+    assert.ok(title.data.messageSeqs[0] < title.seq, '引用必须早于标题自身')
+  }
+  assert.equal(validateSessionEvents(out.events).ok, true)
+})
+
+test('convertDshJsonl 非 user 标题引用全悬空时丢弃该条标题，不写宿主必拒的 messageSeqs: []', () => {
+  const lines = [
+    { type: 'session', id: 'session-title-dangling', cwd: '/tmp/proj', createdAt: 1700000000000 },
+    { type: 'turn/start', seq: 0, time: 1700000000000, data: { turn: 1 } },
+    { type: 'step/start', seq: 1, time: 1700000000000, data: { turn: 1, step: 1 } },
+    { type: 'user/message', seq: 2, time: 1700000000000, surfaceOp: 'append', data: { id: 'u1', role: 'user', content: [{ type: 'text', text: '你好' }], source: { kind: 'user' } } },
+    // 畸形源：标题引用一条不存在的事件
+    { type: 'session/title', seq: 3, time: 1700000000000, data: { title: '坏标题', messageSeqs: [99], source: { kind: 'fallback' } } },
+    { type: 'step/end', seq: 4, time: 1700000000000, data: { turn: 1, step: 1 } },
+    { type: 'turn/end', seq: 5, time: 1700000000000, data: { turn: 1, reason: { kind: 'completed' } } },
+  ]
+  const out = convertDshJsonl(lines.map((l) => JSON.stringify(l)).join('\n'), { sourcePath: '/tmp/proj/session-title-dangling.jsonl' })
+  assert.deepEqual(out.events.filter((e) => e.type === 'session/title'), [])
+  assert.equal(validateSessionEvents(out.events).ok, true)
+  assert.equal(out.title, '坏标题', '标题文本仍保留在转换结果上（pinSourcedSessionTitle 会重新写一条合法标题）')
+})
+
+test('convertDshJsonl 标题引用重映射后仍需是人类 user/message：非人类目标丢弃（已损坏源日志的隔代传染）', () => {
+  // 源日志本身已损坏：标题指向 session-reference 注入的 user/message（更早，但不是
+  // 人类输入）。纯位置映射会把 [3] 忠实继承成新坐标，宿主读取时报
+  // "title messageSeqs must cite distinct earlier human user/message events"。
+  // 重导这种导入会话时坏引用会隔代传染，因此映射后必须再过一道语义过滤。
+  const lines = [
+    { type: 'session', id: 'session-title-corrupt', cwd: '/tmp/proj', createdAt: 1700000000000 },
+    { type: 'turn/start', seq: 0, time: 1700000000000, data: { turn: 1 } },
+    { type: 'step/start', seq: 1, time: 1700000000000, data: { turn: 1, step: 1 } },
+    { type: 'user/message', seq: 2, time: 1700000000000, surfaceOp: 'append', data: { id: 'ref', role: 'user', content: [{ type: 'text', text: '会话引用注入' }], source: { kind: 'session-reference' } } },
+    { type: 'user/message', seq: 3, time: 1700000000000, surfaceOp: 'append', data: { id: 'u1', role: 'user', content: [{ type: 'text', text: '真实提问' }], source: { kind: 'user' } } },
+    // 混合引用：一个非人类 + 一个人类 → 只保留人类那条
+    { type: 'session/title', seq: 4, time: 1700000000000, data: { title: '混合引用', messageSeqs: [2, 3], source: { kind: 'fallback' } } },
+    // 全非人类引用 → 丢弃该条标题
+    { type: 'session/title', seq: 7, time: 1700000000000, data: { title: '坏标题', messageSeqs: [2], source: { kind: 'provider', provider: 'first-prompt-llm' } } },
+    { type: 'assistant/message', seq: 8, time: 1700000000000, surfaceOp: 'append', data: { turn: 1, step: 1, stream: [], message: { id: 'a1', role: 'assistant', content: [{ type: 'text', text: '好' }], source: { kind: 'model', provider: 'p', model: 'm' } } } },
+    { type: 'step/end', seq: 9, time: 1700000000000, data: { turn: 1, step: 1 } },
+    { type: 'turn/end', seq: 10, time: 1700000000000, data: { turn: 1, reason: { kind: 'completed' } } },
+  ]
+  const out = convertDshJsonl(lines.map((l) => JSON.stringify(l)).join('\n'), { sourcePath: '/tmp/proj/session-title-corrupt.jsonl' })
+  const human = out.events.find((e) => e.type === 'user/message' && e.data.source.kind === 'user')
+  const titles = out.events.filter((e) => e.type === 'session/title')
+  assert.equal(titles.length, 1, '全非人类引用的标题被丢弃，混合引用保留')
+  assert.equal(titles[0].data.title, '混合引用')
+  assert.deepEqual(titles[0].data.messageSeqs, [human.seq])
+  const target = out.events.find((e) => e.seq === titles[0].data.messageSeqs[0])
+  assert.equal(target.type, 'user/message')
+  assert.equal(target.data.source.kind, 'user')
+  assert.equal(validateSessionEvents(out.events).ok, true)
+  assert.equal(out.title, '坏标题', '标题文本仍保留（pinSourcedSessionTitle 会重新写一条合法标题）')
 })
 
 test('convertDshJsonl sourceEventSeqs 区间对展开 + 悬空引用丢弃（issue #38 主场景）', () => {

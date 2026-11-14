@@ -37,6 +37,7 @@
     <td align="center" width="20%"><a href="https://github.com/MoonshotAI/kimi-code"><img src="./assets/agents/kimi.svg" width="56" height="56" alt="Kimi Code" /><br /><b>Kimi Code</b></a></td>
     <td align="center" width="20%"><a href="https://github.com/esengine/DeepSeek-Reasonix"><img src="./assets/agents/reasonix.svg" width="56" height="56" alt="Reasonix" /><br /><b>Reasonix</b></a></td>
     <td align="center" width="20%"><a href="https://github.com/anomalyco/opencode"><img src="./assets/agents/opencode.svg" width="56" height="56" alt="OpenCode" /><br /><b>OpenCode</b></a></td>
+    <td align="center" width="20%"><a href="https://github.com/AIDotNet/NextCoWork"><img src="./assets/agents/opencowork.svg" width="56" height="56" alt="openCoWork / NextCoWork" /><br /><b>openCoWork</b></a></td>
   </tr>
   <tr>
     <td align="center" width="20%"><a href="https://github.com/XiaomiMiMo/MiMo-Code"><img src="./assets/agents/mimocode.svg" width="56" height="56" alt="MiMo Code" /><br /><b>MiMo Code</b></a></td>
@@ -64,16 +65,21 @@
     <td align="center" width="20%"><a href="https://github.com/deepseek-ai/deepseek-harness"><img src="./assets/agents/dsh.svg" width="56" height="56" alt="DSH" /><br /><b>DSH</b></a></td>
     <td align="center" width="20%"><a href="https://www.teleai.com.cn/product/super-agent"><img src="./assets/agents/teleagent.svg" width="56" height="56" alt="TeleAgent" /><br /><b>TeleAgent</b></a></td>
     <td align="center" width="20%"><a href="https://www.trae.ai/"><img src="./assets/agents/trae.svg" width="56" height="56" alt="Trae Work" /><br /><b>Trae Work</b></a></td>
+    <td align="center" width="20%"><a href="https://www.doubao.com/download/desktop"><img src="./assets/agents/doubao.svg" width="56" height="56" alt="Doubao" /><br /><b>Doubao</b></a></td>
     <td align="center" width="20%"><a href="https://github.com/mistralai/mistral-vibe"><img src="./assets/agents/vibe.svg" width="56" height="56" alt="Mistral Vibe" /><br /><b>Mistral Vibe</b></a></td>
+    <td align="center" width="20%"><a href="https://codearts.huaweicloud.com/"><img src="./assets/agents/codearts.svg" width="56" height="56" alt="CodeArts Desktop" /><br /><b>CodeArts Desktop</b></a></td>
+    <td align="center" width="20%"><a href="https://copilot.tencent.com/"><img src="./assets/agents/codebuddy.svg" width="56" height="56" alt="CodeBuddy Code" /><br /><b>CodeBuddy Code</b></a></td>
   </tr>
   <tr>
     <td align="center" width="20%"><a href="#usage"><img src="./assets/agents/local-jsonl.svg" width="56" height="56" alt="Local JSONL" /><br /><b>Local JSONL</b></a></td>
+    <td align="center" width="20%"><a href="https://github.com/microsoft/vscode"><img src="./assets/agents/copilot.svg" width="56" height="56" alt="Copilot VS Code" /><br /><b>Copilot VS Code</b></a></td>
+    <td align="center" width="20%"><a href="https://github.com/github/copilot-cli"><img src="./assets/agents/copilot.svg" width="56" height="56" alt="Copilot CLI" /><br /><b>Copilot CLI</b></a></td>
   </tr>
 </table>
 
 ## Install
 
-> Requires dsh 0.1.5-rc.1 or newer. Verified on the 0.1.x line and on 0.2.0-rc.1; dsh-tools must satisfy `>=0.1.0-rc.6 <0.3.0`.
+> Requires dsh 0.1.5-rc.1 or newer. Verified on the 0.1.x line and on the 0.2.x line; dsh-tools must satisfy `>=0.1.0-rc.6 <0.3.0`.
 
 1. Install from a terminal
 
@@ -88,6 +94,8 @@ dsh plugin --profile web add dsh-chat-import                    # npm package
 1. Import conversations from the GUI
 
   Click the **Import sessions** button at the bottom of the left sidebar to open the import window. With the DSH Claude Style theme, that button lives in the account menu at the bottom left. Pick the conversations you want and import them in one click.
+
+  Rows carry their own tools: **double-click** a row to preview the conversation (a read-only dry-run — plugin injections skipped, tool calls folded into one line), switch the search box to **In content** to search message bodies instead of titles, **hide** a row reversibly, move a single-session source file to the Recycle Bin, or **drag the row onto a workspace** in the left sidebar to import it there with its timestamps shifted so it sorts to the top. The exact rules are in [docs/USAGE.md](docs/USAGE.md).
 
   If the file came from somewhere else — a web-app export, a script you wrote, a tool this plugin does not list — use **Import from file** at the top of the same window. Type a local path and press Enter, or press **Choose…** to pick files. When the path is a directory, it asks whether to search subfolders. Check the preview, then import. If detection fails, it lists why each candidate parser gave up and points you at the skill that converts the format.
 
@@ -108,6 +116,8 @@ import_chat({ format: "claude", path: "~/.claude/projects" })
 import_chat({ format: "chatgpt", path: "~/Downloads/chatgpt-export/conversations.json" })
 import_chat({ format: "local-jsonl", path: "D:\downloads\session.jsonl" })
 ```
+
+Cursor workspace grouping and imports prefer the local Cursor workspace registry by conversation id, accepting only existing directories. Imports always read fresh; discovery caches successful reads and invalidates on DB/WAL changes. Malformed JSON and filesystem failures are counted in diagnostic warnings. When no usable entry exists, they fall back to decoding the transcript's project directory name.
 
 ## Configuration
 
@@ -132,6 +142,8 @@ Codex discovery prefers the session title saved in `session_index.jsonl` (`threa
 For activity time, Codex discovery takes the latest valid timestamp found within bounded head and tail windows of the transcript and combines the results across rollout pages. File modification time is the fallback when the transcript carries no timestamp at all, so activity times still come back when the host file service does not expose modification times. A timestamp inside a truncated record can be missed.
 
 Claude Code fork sessions (from the newer desktop session menu and from `--fork-session`) are discovered and imported too. A fork transcript opens with a verbatim copy of the parent's records and appends its own from the fork point, so the main-transcript test looks at **both ends** of the file: if the file name's stem appears at either end, the file owns that session. Session identity is the **last** `sessionId` in the transcript. Before this rule, such files were classified as subagent auxiliary transcripts and skipped wholesale. The copied prefix, which is the parent's history, stays in the log, because a fork's context really does contain it; the parent and the fork therefore overlap by one stretch of history.
+
+The `opencowork` format detects legacy openCoWork (`~/.open-cowork/data.db`) and NextCoWork (`~/.next-cowork/data/nextcowork.db`) by their SQLite schemas. It preserves text, thinking, tool calls and results, titles, working directories and timestamps; NextCoWork sub-agent sessions are excluded. Unknown or malformed blocks and orphaned tool results are reported as `unknownEvents` and `orphanResults`. Attachment references that require sidecar files and native compaction metadata are not reconstructed.
 
 On Windows, Hermes discovery scans `%LOCALAPPDATA%\hermes` and `~/.hermes`, falling back to `~/AppData/Local/hermes` when `LOCALAPPDATA` is unset. On macOS and Linux it scans `~/.hermes`.
 

@@ -37,6 +37,7 @@
     <td align="center" width="20%"><a href="https://github.com/MoonshotAI/kimi-code"><img src="./assets/agents/kimi.svg" width="56" height="56" alt="Kimi Code" /><br /><b>Kimi Code</b></a></td>
     <td align="center" width="20%"><a href="https://github.com/esengine/DeepSeek-Reasonix"><img src="./assets/agents/reasonix.svg" width="56" height="56" alt="Reasonix" /><br /><b>Reasonix</b></a></td>
     <td align="center" width="20%"><a href="https://github.com/anomalyco/opencode"><img src="./assets/agents/opencode.svg" width="56" height="56" alt="OpenCode" /><br /><b>OpenCode</b></a></td>
+    <td align="center" width="20%"><a href="https://github.com/AIDotNet/NextCoWork"><img src="./assets/agents/opencowork.svg" width="56" height="56" alt="openCoWork / NextCoWork" /><br /><b>openCoWork</b></a></td>
   </tr>
   <tr>
     <td align="center" width="20%"><a href="https://github.com/XiaomiMiMo/MiMo-Code"><img src="./assets/agents/mimocode.svg" width="56" height="56" alt="MiMo Code" /><br /><b>MiMo Code</b></a></td>
@@ -64,16 +65,21 @@
     <td align="center" width="20%"><a href="https://github.com/deepseek-ai/deepseek-harness"><img src="./assets/agents/dsh.svg" width="56" height="56" alt="DSH" /><br /><b>DSH</b></a></td>
     <td align="center" width="20%"><a href="https://www.teleai.com.cn/product/super-agent"><img src="./assets/agents/teleagent.svg" width="56" height="56" alt="TeleAgent" /><br /><b>TeleAgent</b></a></td>
     <td align="center" width="20%"><a href="https://www.trae.ai/"><img src="./assets/agents/trae.svg" width="56" height="56" alt="Trae Work" /><br /><b>Trae Work</b></a></td>
+    <td align="center" width="20%"><a href="https://www.doubao.com/download/desktop"><img src="./assets/agents/doubao.svg" width="56" height="56" alt="豆包" /><br /><b>豆包</b></a></td>
     <td align="center" width="20%"><a href="https://github.com/mistralai/mistral-vibe"><img src="./assets/agents/vibe.svg" width="56" height="56" alt="Mistral Vibe" /><br /><b>Mistral Vibe</b></a></td>
+    <td align="center" width="20%"><a href="https://codearts.huaweicloud.com/"><img src="./assets/agents/codearts.svg" width="56" height="56" alt="CodeArts Desktop" /><br /><b>CodeArts Desktop</b></a></td>
+    <td align="center" width="20%"><a href="https://copilot.tencent.com/"><img src="./assets/agents/codebuddy.svg" width="56" height="56" alt="CodeBuddy Code" /><br /><b>CodeBuddy Code</b></a></td>
   </tr>
   <tr>
     <td align="center" width="20%"><a href="#使用"><img src="./assets/agents/local-jsonl.svg" width="56" height="56" alt="本地 JSONL" /><br /><b>本地 JSONL</b></a></td>
+    <td align="center" width="20%"><a href="https://github.com/microsoft/vscode"><img src="./assets/agents/copilot.svg" width="56" height="56" alt="Copilot VS Code" /><br /><b>Copilot VS Code</b></a></td>
+    <td align="center" width="20%"><a href="https://github.com/github/copilot-cli"><img src="./assets/agents/copilot.svg" width="56" height="56" alt="Copilot CLI" /><br /><b>Copilot CLI</b></a></td>
   </tr>
 </table>
 
 ## 安装
 
-> 插件要求 dsh 0.1.5-rc.1 及以上。已在 0.1.x 与 0.2.0-rc.1 上验证过，其中 dsh-tools 需满足 `>=0.1.0-rc.6 <0.3.0`。
+> 插件要求 dsh 0.1.5-rc.1 及以上。已在 0.1.x 与 0.2.x 上验证过，其中 dsh-tools 需满足 `>=0.1.0-rc.6 <0.3.0`。
 
 1. 用终端安装
 
@@ -88,6 +94,8 @@ dsh plugin --profile web add dsh-chat-import                    # npm 包
 1. 通过 GUI 导入会话
 
   点左侧栏底部的「导入会话」按钮打开导入窗口（用 DSH Claude Style 主题时，这个按钮收在左下角的账号菜单里），选好要导入的会话，一键导入。
+
+  会话行自带工具：**双击**行打开只读预览（跑的是导入的 dry-run，插件注入的消息不出现，工具调用折成一行）；搜索框可切到「**搜内容**」按正文检索；可以把行**隐藏**（可撤销）；可以把单会话来源的文件移进回收站；也可以把行**拖到左侧栏的工作区**上，导入到那个工作区并把时间轴平移到「现在」，让它排在最上面。规则细节见 [docs/USAGE.zh-CN.md](docs/USAGE.zh-CN.md)。
 
   手上是别的工具导出的文件（网页版导出、自己写的脚本、列表里没有的工具）时，用同一个窗口顶部的「**从文件导入**」：填本机路径后回车，或者点「**选择…**」挑文件。路径是目录时会先问你要不要搜索子文件夹。预览确认之后再导入。识别不出格式时，会逐个列出候选解析器的失败原因，并给出把该格式转换过来的 Skill 指引。
 
@@ -108,6 +116,8 @@ import_chat({ format: "claude", path: "~/.claude/projects" })
 import_chat({ format: "chatgpt", path: "~/Downloads/chatgpt-export/conversations.json" })
 import_chat({ format: "local-jsonl", path: "D:\downloads\session.jsonl" })
 ```
+
+Cursor 的工作区分组与导入优先按对话 id 查询本机 Cursor 工作区登记册，只采用现存目录。导入始终重新读取，发现缓存成功结果并在 DB/WAL 变化时失效；畸形 JSON 与文件系统读取失败会在诊断告警中计数。没有可用登记时，仍回退转录所在项目目录名的解码。
 
 ## 配置
 
@@ -132,6 +142,8 @@ Codex 的会话标题优先取 `session_index.jsonl` 里保存的标题（`threa
 Codex 的活动时间取日志头尾有界窗口里最新的有效时间戳，并合并所有 rollout 分页的结果。只有日志里完全没有时间时才回退文件修改时间，所以宿主文件服务不提供修改时间也能取到活动时间。被窗口截断的记录里的时间戳可能漏掉。
 
 Claude Code 的 fork 会话（新版桌面端会话菜单与 `--fork-session`）同样会被发现并导入。fork 转录把父会话的记录逐字拷贝在文件开头，自己的记录从 fork 点开始追加。所以判定主转录时看文件的两端：文件名 stem 出现在头部或尾部，就算这个文件自己的会话。会话身份取转录里最后出现的 `sessionId`。以前这类文件被整类当成子代理辅助转录跳过，一条都扫不到。拷贝过来的父会话历史会留在日志里，因为 fork 的上下文本来就有它，于是父会话与 fork 会话会重叠一段历史。
+
+`opencowork` 按 SQLite schema 自动识别旧 openCoWork（`~/.open-cowork/data.db`）与 NextCoWork（`~/.next-cowork/data/nextcowork.db`），保留正文、thinking、工具调用与结果、标题、工作目录和时间；NextCoWork 子代理会话不单独导入。未知或畸形块、无法配对的工具结果分别计入 `unknownEvents` 与 `orphanResults`。需要旁读附件文件的图片引用与原生压缩元数据暂不还原。
 
 Hermes 在 Windows 上默认扫描 `%LOCALAPPDATA%\hermes` 与 `~/.hermes`；`LOCALAPPDATA` 没有设置时，回退到 `~/AppData/Local/hermes`。macOS 与 Linux 默认扫描 `~/.hermes`。
 

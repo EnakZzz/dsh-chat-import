@@ -48,11 +48,15 @@ import_chat({ format: "opencode", path: "C:\Users\<you>\.local\share\opencode\op
 import_chat({ format: "kilocode", path: "C:\Users\<you>\.local\share\kilo\kilo.db" })
 import_chat({ format: "teleagent", path: "C:\Users\<you>\.local\share\TeleAgent\users\<account>\teleagent.db" })
 import_chat({ format: "trae", path: "C:\Users\<you>\AppData\Roaming\Trae\User\workspaceStorage" })
+import_chat({ format: "doubao", path: "C:\Users\<you>\AppData\Local\Doubao\User Data" })
 import_chat({ format: "vibe", path: "C:\Users\<you>\.vibe\logs\session" })
+import_chat({ format: "codearts", path: "C:\Users\<you>\.codearts\kernel\sessions" })
+import_chat({ format: "copilot-vscode", path: "C:\Users\<you>\AppData\Roaming\Code\User\workspaceStorage" })
+import_chat({ format: "copilot-cli", path: "C:\Users\<you>\.copilot\session-state" })
 import_chat({ format: "local-jsonl", path: "D:\downloads\session.jsonl" })
 ```
 
-`format: "local-jsonl"` 接受任意本地 `.jsonl` 会话文件或目录。它会自动识别 `dsh` / `claude` / `codex` / `cursor` / `reasonix` / `pi` / `openclaw` / `hermes` / `qoder` / `vibe` / `generic`；识别不准时用 `parseFormat` 强制指定：
+`format: "local-jsonl"` 接受本地会话文件或 JSONL 目录。它会自动识别 `dsh` / `claude` / `codex` / `cursor` / `reasonix` / `pi` / `openclaw` / `hermes` / `qoder` / `vibe` / `codearts` / `codebuddy` / `generic` / `copilot-vscode` / `copilot-cli`；识别不准时用 `parseFormat` 强制指定：
 
 ```
 import_chat({ format: "local-jsonl", path: "D:\downloads\session.jsonl" })
@@ -63,12 +67,29 @@ import_chat({ format: "local-jsonl", path: "D:\downloads\unknown.jsonl", parseFo
 
 `format: "opencode"` 认 opencode 的两个存储世代并自动分派：V1 是 `session` / `message` / `part`，V2 是 opencode 2.x 的 `session_v2` / `session_message`。两代共用同一个 `opencode.db`；V1 那三张表只是 V1→V2 迁移的来源，迁移之后旧行仍留在库里。插件只读命中的那一代，所以同一个会话不会被导入两次；两代都没有的库会直接报错，而不是显示成「没有会话」。
 
-`format: "teleagent"` 也接受 `users/` 多账户目录（逐个账户枚举 `<账户>/teleagent.db`），或 `TeleAgent/` 数据根。`format: "trae"` 接受 Trae 的 `User` 根、`workspaceStorage`、`globalStorage`，也可以直接给 `state.vscdb` 的路径。
+`format: "teleagent"` 也接受 `users/` 多账户目录（逐个账户枚举 `<账户>/teleagent.db`），或 `TeleAgent/` 数据根。`format: "trae"` 接受 Trae 的 `User` 根、`workspaceStorage`、`globalStorage`，也可以直接给 `state.vscdb` 的路径。`format: "doubao"` 接受豆包的 `User Data` 根、某个 profile 目录、`IndexedDB` 目录，或直接给某个 `chrome_doubao-chat_0.indexeddb.leveldb` 库目录。
+
+豆包的会话列表在服务端，本地只为**最近打开过**的对话保留正文。所以它只列出并导入本地确实有正文的会话；没有正文的会话不会出现在列表里，也没法导入（不拿标题凑空壳）。一个都读不到时会直接报错，并点名库路径与解不开的记录数。
+
+`format: "copilot-vscode"` 导入 VS Code Copilot 的 version 3 `chatSessions/*.json`，
+可传 `workspaceStorage` 根、`chatSessions` 目录或单个 JSON 文件。面板自动发现
+Windows、macOS 和 Linux 下 Code、Code - Insiders、VSCodium 的存储，便携安装可设
+`COPILOT_VSCODE_STORAGE_DIR`。导入保留已保存的标题、源时间、推理和工具；
+VS Code 未保存的工具参数及结果分别通过 `missingToolInputs`、`missingToolOutputs`
+计数上报。详见 [IMPORT-GUIDE.zh-CN.md](IMPORT-GUIDE.zh-CN.md#copilot-vs-code)。
+
+`format: "copilot-cli"` 导入 Copilot CLI 的逐会话事件流
+（`~/.copilot/session-state/<id>/events.jsonl`）：可传 `session-state` 根、单个
+会话目录或单个 `events.jsonl` 文件；`.copilot` 根被迁移过时设 `COPILOT_HOME`。
+按顺序还原提问、回复、推理与工具执行；源侧压缩默认写为 DSH 原生压缩检查点，
+`fullHistory: true` 保留全量。详见
+[IMPORT-GUIDE.zh-CN.md](IMPORT-GUIDE.zh-CN.md#copilot-cli)。
 
 <details>
 <summary><b>导入参数与行为</b></summary>
 
 - `preview: true`（别名 `dryRun: true`）—— **只读**运行：照常解析、读取、转换，但**零副作用**、不落盘。去掉这个参数再调一次，就是正式导入。
+- **Kimi Code 的宿主注入不再冒充用户提问，并行工具结果保持源顺序** —— 新 Kimi Code 的 `context.append_message` 带 `message.origin`：真人输入是 `kind:"user"`，日期 / 权限 / AGENTS.md / todo 提醒、后台任务完成通知、子代理事件分别是 `injection` / `task` / `system_trigger`。此前只按 `role:"user"` 建轮，导入后这些工具通知和提醒会以用户气泡出现；现在它们按 `source.kind:"plugin"` 的上下文注入导入，UI 折叠显示，正文与顺序不变，不计入消息数、也不作标题回退。连续同文注入保留为独立消息；同一步的并行工具结果按源里的完成顺序发射，不重排成调用声明顺序。除 DSH 自己注入的系统头与环境变更声明外，导入的历史消息序列与源转录一致；预算裁剪保留开头锚点，因此后续对话的缓存前缀不会被导入环节额外改写。
 - **图片落成宿主附件** —— 源转录里的图片不再只留一个 `[image]` 文本占位。转换层把图片字节放进中间结构，落盘前经宿主附件服务（`ctx.attachments`）存成不可变对象，会话日志里只留 `attachmentId` 引用（**base64 永远不会进日志**）。结果里 `images: <N>` 是落成附件的张数；`imagesDegraded: <M>` 是拿不到字节、仍以 `[image]` 占位导入的张数，下列情况都会计入：宿主没有附件服务、类型不收（只收 PNG / JPEG / WebP / GIF）、单会话超过 500 张、源只给了引用（例如 Kimi 的 `blobref:`）、**落点是 V3 代次**。导出方向是对称的：`export_chat({ format: "claude" })` 与 `export_chat({ format: "codex" })` 会把引用读回 base64 写进目标格式，读不回时计入 `degradations` 的 `attachment-skipped`。`storeImages: false`（或环境变量 `DSH_IMPORT_STORE_IMAGES=0`）只留占位、不写附件存储——图片是唯一会明显撑大宿主持久存储的导入面。**注意：删除或撤回导入的会话不会回收这些图片字节**，宿主附件服务第一版没有删除、回收的 API，图片对象会一直留在附件存储里。
 - **耗时与 token 用量如实导入** —— 源转录里逐记录的时间戳会透传成会话事件时间，宿主据此折出真实的逐步模型耗时与工具耗时（模型耗时 = 步骤开始→助手消息，工具耗时 = 调用→结果）。源没有逐记录时间的会话，这些耗时就是 0，不伪造。provider 回报的 token 用量（Claude Code 的 `message.usage`、opencode / kilocode / mimocode 的 `message.data.tokens`、Reasonix v2 的行级 `usage`）写入 `assistant/message.data.usage`，宿主的 token 统计能看到；input / output 不是非负整数时整份丢弃，不污染统计。逐源的支持情况见 [INTERCHANGE.md](INTERCHANGE.md) 能力矩阵的 `timestamps` / `usage` 两列。**首 token 延迟与输出速度任何源都导不了**：外部转录只记录完成态的消息，没有流块时间戳（`stream` 恒为 `[]`）。导出 opencode 方向是对称的：事件带 usage 时 `tokens` 如实回填，没有才写 0 并计入 `usage-unknown`。
 - `force: true` —— 即使已经导入过，也以新 id（`import-<sessionId>-<n>`）另存一份**完整副本**，旧会话绝不修改。重导语义的完整说明见下文「重导同一源」。
@@ -82,6 +103,7 @@ import_chat({ format: "local-jsonl", path: "D:\downloads\unknown.jsonl", parseFo
 - `import_chat({ format: 'claude', compacted: true })` —— 历史参数，作为兼容别名保留。Claude 的压缩导入自本版本起**默认就是原生压缩检查点**，不需要传这个参数。
 - `import_chat({ format: 'claude', includeToolUseResult: true })` —— 额外并入 Claude 的**富结果 sidecar**（`toolUseResult`）：编辑补丁（`structuredPatch` / `bashEditDiff`）渲染成 diff 文本，交互问答渲染成问答对，其余标量（退出码、耗时、持久化输出路径等）渲染成一行紧凑 JSON，统一追加在该条工具结果之后。默认关闭，因为全量并入会明显增大日志。这个开关进参数指纹，换值要用 `force` 重导。结果里的 `toolUseResultsMerged` 是实际并入的条数。整份文件快照（`originalFile`）以及可见正文里已有的内容，不重复搬。
 - `import_chat({ format: 'codex', fullHistory: true })` —— Codex rollout 的上下文压缩默认导入为原生压缩检查点：`compacted` 信封里的交接摘要进检查点，跨压缩点的那一轮一分为二，边界前 log-only、边界后可见。`fullHistory: true` 导全量、不发检查点。Codex 子代理的 rollout 不是独立会话，始终跳过，并给出原因。
+- **Codex 压缩 rollout** —— Codex 0.167+ 把已结束的历史会话存成 `rollout-*.jsonl.zst`，只有少数进行中的会话仍是明文 `.jsonl`。`codex` 来源两种形态都能发现与导入，`.zst` 先解压再转换。同一页两种形态并存时保留较新的文件；rollout 之后改存为 `.zst` 时沿用既有导入记录，归档不会产生重复会话。
 - **Codex Desktop「导入外部 agent 会话」的 rollout：展平的工具调用还原为真正的工具消息** —— Codex Desktop 做会话导入时，把外部 agent（实测是 Claude Code）的 transcript 写进 rollout，但工具调用**没有** `function_call` 记录，而是展平成 assistant 正文里的文本信封：`[external_agent_tool_call: Bash]…[/external_agent_tool_call]`、`[external_agent_tool_result]…[/external_agent_tool_result]`，信封还可以与正文混排在同一个文本块里。以前导入这类 rollout，工具调用全变成散文（python 命令里的 `# 注释` 行会被 markdown 渲染成巨型标题，Edit 也看不出是编辑）。现在转换层按段切分，还原成 `tool/call` + `tool/result`：结果按出现顺序 FIFO 配对，`: error` 标记还原为 `isError`。
   **还原不虚构**：载荷的键名与内容照抄信封。Codex 自己把 `file_path` 写成 `file`，并且**丢掉**了 Edit / Write 的正文（只留文件路径）；这部分在 rollout 里已经不存在，插件不补。结果里的 `externalAgent: { calls, results, orphanResults, malformed }` 上报还原情况。其中 `orphanResults`（找不到调用的结果，原样保留为正文）和 `malformed`（未闭合的信封、认不出的载荷）是降级项。想要 Edit 的 `old_string` / `new_string`，请导**原始的 Claude Code transcript**，而不是这份派生出来的 rollout。
 - `import_chat({ format: 'hermes', lineage: 'tail' })` —— 只导**叶子链尾**，也就是不作为任何其他会话父会话的那些会话；压缩分叉出来的父会话会跳过并标注。
@@ -236,7 +258,7 @@ dsh web 的左侧栏底部只有一个「导入会话」入口：**导入会话*
 
 插件**要求 dsh ≥ 0.1.5-rc.1**（`peerDependencies` 已经抬高门槛）。导入窗口**停靠进官方原生右侧栏**：插件在右侧栏注册「导入会话」这个 tab 类型（guide 页有一个带图标、标题和一行描述的胶囊），点按钮就通过 `sidebarRight.openTab('chat-import')` 打开这个 tab，中间的对话区照常保留。这里没有回落链：没有官方右侧栏的老版本，客户端不再支持。
 
-窗口里按工作区文件夹分组列出发现的会话（用各来源记录里的 `cwd` 或项目名，都没有就归入「(未分组)」），并支持按来源过滤：「全部来源」会扫描所有格式的默认数据根，单选某个来源就只看该格式。每行只显示来源工具标、标题和相对时间，上下文、分支、导入状态放在悬停提示里。**点这一行的任意位置就勾选**（键盘聚焦后用 Enter 或空格），行首的工具标只负责标识来源与指示选中态（选中时叠一层遮罩加一个勾），不用再瞄准 22px 的小方块。唯一的例外是行内导入按钮：点它只执行导入，不会连带勾选。这个按钮默认隐藏，悬停或键盘聚焦到该行时，它出现在时间的位置。
+窗口里按工作区文件夹分组列出发现的会话（用各来源记录里的 `cwd` 或项目名，都没有就归入「(未分组)」），并支持按来源过滤：「全部来源」会扫描所有格式的默认数据根，单选某个来源就只看该格式。每行显示来源工具标、标题和相对时间；悬停或键盘聚焦时，时间的位置换成三个行工具（预览、隐藏、删除源文件，见下文「会话行工具」），上下文、分支、导入状态放在悬停提示里。**点这一行的任意位置就勾选**（键盘聚焦后用 Enter 或空格），行首的工具标只负责标识来源与指示选中态（选中时叠一层遮罩加一个勾），不用再瞄准 22px 的小方块。行内那几个按钮（导入、预览、隐藏、删除）都是例外：点哪个只做哪个动作，不会连带勾选。它们默认隐藏，悬停或键盘聚焦到该行时，出现在时间的位置。
 
 搜索框按标题、工作区、路径过滤。列表**分页**展示，每页 500 / 2000 / **全部** 可选，默认 500；列表只挂载可视区那十几行，所以档位大小不影响渲染开销，选「全部」就是不分页。跨页选择会保留，方便批量操作。扫描进度与分页信息合并在列表下方的同一条状态栏里：扫描中显示「已发现 N 个」，完成后显示页码与总数。
 
@@ -258,11 +280,21 @@ dsh web 的左侧栏底部只有一个「导入会话」入口：**导入会话*
 
 > **转投与图片**：目标工具能承载图片时（Claude Code、Codex），图片会先按常规路径落进中间会话的附件存储，导出时读回字节写进目标格式。但中间会话随后会被撤回，而宿主附件服务没有删除接口，所以这些图片字节会**留在附件存储里，无法回收**。结果里 `attachmentsOrphaned: <N>` 会点名这个张数。目标工具导不出图片时（Kimi 的 wire 只认自有 blob，opencode 的 file part 还需要外部文件），插件**不会落**这些字节，而是把图片降级为占位并在结果里计数，免得白白留下回收不掉的数据。
 
-> 数据来自与 `scan_discover` 同一套只读发现（30s TTL 缓存，加上持久化的 mtime 书签）。除了你主动触发的导入，面板不做任何写入。
+> 数据来自与 `scan_discover` 同一套只读发现（30s TTL 缓存，加上持久化的 mtime 书签）。面板不会自己写盘：写入只来自你主动触发的动作——导入、隐藏（在忽略表里记一条）、删除（把源文件移出原目录）。
 
 > **导入的会话落在哪个工作区**（细节见 `architecture.md` D16）：宿主只接受「会话 cwd 与工作区路径相等」的挂接，所以插件在创建会话之前先把落点定下来。cwd 命中已有工作区，就沿用它；cwd 是本机目录，就在该目录建一个工作区（会话与原生会话同区，侧栏会多出这个分组）；cwd 不在本机、或者拿不到（包括主目录，沙箱 ACL 不允许），就落到**专用导入工作区** `$DSH_HOME/dsh-chat-import-workspace`，cwd 也随之改写。`workspaceMode` 可以选 `auto`（默认，就是上面这套规则）、`per-project`（不改写 cwd，宁可「未分组」）、`dedicated`（一律落专用工作区，目录可用 `workspaceDir` 覆盖）。归组结果一律写进导入结果：`workspace` / `workspaceCreated` 表示侧栏多出的分组，`ungrouped` + `ungroupedReason` 表示会话已导入但停在侧栏最底部的「未分组」（找不到时先滚到列表末尾）。旧版本曾经为源 transcript 目录误建过空工作区，可以用「导入历史」页的「**清理空工作区**」按钮移除；它只删成员为 0 的工作区登记，目录与会话日志都保留。
 
 > **导入完成会弹一条落点提示**，用的是官方 `shell.overlay` 的 Toast：顶部居中，约 6 秒后自动消失。内容是「导入完成 → <工作区路径>（本次新建该工作区）；另有 N 个未归组」。面板结果栏里仍有完整计数，这条 Toast 只是保证你切走 tab 或收起右栏之后，也知道**这次落到了哪**。转投（导入到 DSH 之外）弹的是写出的文件路径。**被幂等跳过的会话也用同一条 Toast 提示**：「已跳过 N 个未变化 / 无法安全续写的对话」，外加一个「重新导入为新会话」按钮（等于用 force 另铸新会话，按钮停留 15 秒）。面板里原来那条底部黄条已经并进 Toast。宿主没有官方 `Toast` 组件的旧版本上，插件退化为位置相同、同样带动作按钮的自绘横幅（见 `architecture.md` D17）。
+
+### 会话行工具 —— 预览、正文搜索、隐藏、删除源文件
+
+悬停或键盘聚焦到某一行时，时间的位置会换成三个行工具；**双击会话行**打开同一张预览卡。和行内导入按钮一样，它们都不会连带勾选。
+
+- **预览**复用导入的只读 dry-run（零副作用）：标题、cwd、轮 / 消息 / 工具调用计数，以及按顺序排列的提问与回复。插件注入的消息不出现，连续的工具调用折成一行（`Bash ×2, Read`），每条消息都会截断，贴一大段内容也不会把卡片淹掉。
+- **搜内容**把搜索框从标题 / 路径匹配切到正文检索。只索引提问与回复的文本——工具入参与结果不计。空白分隔的每个词都必须出现在同一条消息里；命中的行带命中数，关键词在行标题与预览里高亮。转录是数据库或「一个文件装多条会话」的 JSON（`conversations.json`、opencode / zcode / hermes 的库）的来源会被跳过并计数，因为它们没法逐行读。换词、换来源或换 epoch 会取消上一次检索；进度与命中来自对已扫描列表的轮询，检索本身不重新扫盘。
+- **隐藏**把该行移出列表，并在忽略表里登记一条可撤销的 `hidden` 记录：重扫不再出现，`/ignores` 能看到它，提示条上的**撤销**会删掉这条记录。已经带着归档 / 撤回记录的行不会被改写——对这类行会跳过隐藏。
+- **删除文件…**在明确确认之后把源文件移进系统回收站。只对单会话来源、且只对**按默认根扫描**出来的行开放；用自定义路径扫出来的行仍可预览、搜索与导入，但面板不提供删除。DSH 侧已导入的副本保留；一个文件装多条会话的来源（数据库、`conversations.json`）一律拒绝——删它等于删掉里面的每一条会话。
+- **拖到侧栏工作区**：把行拖到左侧栏的工作区分组上，导入的落点就钉在该工作区，副本时间轴平移到「最后一个事件是现在」：它会排在该工作区最上面，而不是落回原来的日期。只对 DSH 落点成立——转投到别的工具没有工作区可落。
 
 ### 从文件导入 —— 任意本地文件与长尾工具
 
