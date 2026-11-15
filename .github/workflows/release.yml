@@ -80,8 +80,14 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          if npm view "dsh-chat-import@${VERSION}" version > /dev/null 2>&1; then
-            echo "dsh-chat-import@${VERSION} is already on npm; skipping publish"
+          # 本 fork 以 @vstudio/ 作用域发布到内部 registry，不在 npm 上；带作用域时跳过 npmjs 发布。
+          NAME="$(node -p "require('./package.json').name")"
+          if [[ "${NAME}" == @*/* ]]; then
+            echo "${NAME} is published from the internal registry, not npm; skipping publish"
+            exit 0
+          fi
+          if npm view "${NAME}@${VERSION}" version > /dev/null 2>&1; then
+            echo "${NAME}@${VERSION} is already on npm; skipping publish"
             exit 0
           fi
           publish() {
@@ -95,7 +101,7 @@ jobs:
           if ! publish; then
             # 注册表同步有延迟：publish 已经成功但立刻回查不到时，不能误判后再发一次。
             sleep 20
-            npm view "dsh-chat-import@${VERSION}" version > /dev/null 2>&1
+            npm view "${NAME}@${VERSION}" version > /dev/null 2>&1
           fi
       - name: Create or update the GitHub Release
         if: ${{ github.event_name == 'push' }}

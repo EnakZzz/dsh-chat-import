@@ -27,7 +27,7 @@
     const SETTINGS_NAV_STYLE_ID = "dsh-chat-import-settings-nav-style";
     /** 本插件在宿主客户端模块系统里的 entry 名（= package.json name = lib/client.js 里
      *  `__ModuleLoader__.load({ id })` 的那个 id），也是宿主给样式表记账用的包名。 */
-    const PLUGIN_ID = "dsh-chat-import";
+    const PLUGIN_ID = "@vstudio/dsh-chat-import";
     /** 本插件自己那张样式表的唯一键（宿主官方前端包同款写法）：重载后靠它认回自己那一张。 */
     const SETTINGS_NAV_PLUGIN_CSS = PLUGIN_ID + "/settings-nav.css";
     /** 别人留下的无标记样式表被挪到这个值上：它不是任何包的 entry 名，因此宿主的认领扫描

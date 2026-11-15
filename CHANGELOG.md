@@ -2,39 +2,25 @@
 
 All notable changes to `dsh-chat-import` are documented here, newest first.
 
-## [0.26.7] - 2026-11-15
-
-[中文](#cn-0.26.7) | [English](#en-0.26.7)
-
-<h3 id="cn-0.26.7">问题修复</h3>
-
-- **合并上游 v0.26.6**：包含 0.26.3 起对 `@deepseek-ai/dsh-tools` 0.2.2 的兼容（`ToolsService` 哨兵）、DSH 导入的 protected system head、Codex 压缩 rollout 与分页链等一系列修复。标题处理改用上游的 `session/title` messageSeqs 重映射，不再整条丢弃。
-- **未打开会话时点「导入会话」给出提示**：此前面板在没有当前会话时点了没有反应。
-- **重导 DSH 会话不再透传源标题**：源日志的旧 `session/title` 曾带着重排前的引用导致 v4 关系校验拒载；现由上游重映射覆盖并补充保护头。
-
-<h3 id="en-0.26.7">Bug Fixes</h3>
-
-- **Merged upstream v0.26.6**: brings the `@deepseek-ai/dsh-tools` 0.2.2 compatibility guard (`ToolsService`), the protected system head for DSH imports, compressed Codex rollouts, paginated-chain merging and the rest of 0.26.3–0.26.6. Title handling now uses upstream's `session/title` messageSeqs remapping instead of dropping the event.
-- **The import panel answers when no session is open**: it used to do nothing.
-- **Re-importing a DSH session no longer passes the source title through**: stale references in the old `session/title` could make the v4 relation check reject the log; upstream's remapping plus the protected head now covers it.
-
-**Full Changelog**: [v0.26.6...v0.26.7](https://github.com/EnakZzz/dsh-chat-import/compare/v0.26.6...v0.26.7)
-
-## [0.26.6] - 2026-11-11
+## [0.26.6] - 2026-11-15
 
 [中文](#cn-0.26.6) | [English](#en-0.26.6)
 
 <h3 id="cn-0.26.6">问题修复</h3>
 
-- **Codex 压缩 rollout（`rollout-*.jsonl.zst`）可发现、可导入**：Codex 0.167+ 把已结束的历史会话压缩为 `.jsonl.zst`，此前只认明文 `.jsonl`，绝大多数会话在扫描、`scan_discover`、`import_chat({ format: "codex" })` 与预览中被静默忽略。现在发现层与导入层统一匹配两种后缀，读取前用与 DSH `.zstd` 相同的 fzstd 多帧解码器解压（发现层只解到文件头够用即停，不整份解压）；同一页明文与压缩形态并存时按 mtime 取较新的一份，`.jsonl → .jsonl.zst` 归档改后缀后沿用原导入记录，重导报告 `already-imported`，不重复建会话。目录导入、单文件导入、面板与预览同口径，`codex` 来源的 path 形状说明同步更新。
-- **Codex 目录导入按 thread 合并分页链**：目录模式原先只按文件路径分链，同一会话被拆成多页时每页各导成一条会话；现在收集时带上文件名，与单文件导入的链解析同一口径，一条链只落一条会话。
+- **包名改为 `@vstudio/dsh-chat-import`**：本 fork 走内部 registry，与上游同号（0.26.6）即表示对齐上游该版本。
+- **合并上游 v0.26.6**：包含 0.26.3 起对 `@deepseek-ai/dsh-tools` 0.2.2 的兼容（`ToolsService` 哨兵）、DSH 导入的 protected system head、Codex 压缩 rollout 与分页链等一系列修复。标题处理改用上游的 `session/title` messageSeqs 重映射，不再整条丢弃。
+- **未打开会话时点「导入会话」给出提示**：此前面板在没有当前会话时点了没有反应。
+- **重导 DSH 会话不再透传源标题**：源日志的旧 `session/title` 曾带着重排前的引用导致 v4 关系校验拒载；现由上游重映射覆盖并补充保护头。
 
 <h3 id="en-0.26.6">Bug Fixes</h3>
 
-- **Compressed Codex rollouts (`rollout-*.jsonl.zst`) are discovered and imported**: Codex 0.167+ archives finished sessions as `.jsonl.zst`, but the source only matched plain `.jsonl`, so the vast majority of sessions were silently skipped by scanning, `scan_discover`, `import_chat({ format: "codex" })` and preview. Discovery and import now accept both suffixes, and compressed pages are decompressed before conversion with the same multi-frame fzstd decoder used for DSH `.zstd` logs (discovery decodes only as much of the head as it needs, never the whole file). When a page exists in both forms the newer file wins; a rollout that later switches from `.jsonl` to `.jsonl.zst` keeps its existing import record, so re-import reports `already-imported` instead of creating a duplicate session. Directory import, single-file import, the panel and preview all share these semantics, and the `codex` path-shape description is updated.
-- **Codex directory imports merge paginated chains by thread**: directory mode used to chain files by path alone, so a paginated session was imported as one session per page. The collector now carries the file name, matching the single-file chain resolver, so one chain becomes one session.
+- **Renamed to `@vstudio/dsh-chat-import`**: this fork ships from the internal registry, so the version number now names the upstream release it aligns with.
+- **Merged upstream v0.26.6**: brings the `@deepseek-ai/dsh-tools` 0.2.2 compatibility guard (`ToolsService`), the protected system head for DSH imports, compressed Codex rollouts, paginated-chain merging and the rest of 0.26.3–0.26.6. Title handling now uses upstream's `session/title` messageSeqs remapping instead of dropping the event.
+- **The import panel answers when no session is open**: it used to do nothing.
+- **Re-importing a DSH session no longer passes the source title through**: stale references in the old `session/title` could make the v4 relation check reject the log; upstream's remapping plus the protected head now covers it.
 
-**Full Changelog**: [v0.26.5...v0.26.6](https://github.com/Nwflower/dsh-chat-import/compare/v0.26.5...v0.26.6)
+**Full Changelog**: [v0.26.5...v0.26.6](https://github.com/EnakZzz/dsh-chat-import/compare/v0.26.5...v0.26.6)
 
 ## [0.26.5] - 2026-11-09
 
